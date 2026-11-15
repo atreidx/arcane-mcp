@@ -199,7 +199,9 @@ def register(mcp: FastMCP) -> None:
         # the list carries its latest resourceSample instead.
         url = f"/api/agents/{env_id}/containers"
         try:
-            resp = await client.get(url, params={"limit": "1000", "includeInternal": "true"}, headers=_build_headers(agent_token))
+            # Samples are only collected when the list is sorted by a resource field.
+            params = {"limit": "1000", "includeInternal": "true", "sort": "cpuUsage"}
+            resp = await client.get(url, params=params, headers=_build_headers(agent_token))
             resp.raise_for_status()
             for c in resp.json().get("data") or []:
                 names = [n.lstrip("/") for n in c.get("names") or []]

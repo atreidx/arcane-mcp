@@ -167,7 +167,7 @@ async def test_get_container_logs(mcp: Any, httpx_mock: Any) -> None:
 async def test_get_container_stats(mcp: Any, httpx_mock: Any) -> None:
     """get_container_stats returns the container's resourceSample from the list."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/agents/0/containers?limit=1000&includeInternal=true",
+        url="http://localhost:3552/api/agents/0/containers?limit=1000&includeInternal=true&sort=cpuUsage",
         method="GET",
         json={"data": [
             {"id": "c0ffee", "names": ["/other"], "state": "running", "resourceSample": {"cpuPercent": 9.0}},
