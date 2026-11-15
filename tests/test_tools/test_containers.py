@@ -14,7 +14,7 @@ from tests.conftest import call_tool
 async def test_list_containers(mcp: Any, httpx_mock: Any) -> None:
     """List containers returns parsed JSON."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers?all=false",
+        url="http://localhost:3552/api/agents/0/containers?limit=1000&status=running",
         method="GET",
         json=[{"id": "c1", "name": "web", "status": "running"}],
     )
@@ -26,7 +26,7 @@ async def test_list_containers(mcp: Any, httpx_mock: Any) -> None:
 async def test_list_containers_all(mcp: Any, httpx_mock: Any) -> None:
     """list_containers passes the all flag."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers?all=true",
+        url="http://localhost:3552/api/agents/0/containers?limit=1000",
         method="GET",
         json=[],
     )
@@ -50,7 +50,7 @@ async def test_list_containers_http_error(mcp: Any, httpx_mock: Any) -> None:
 async def test_inspect_container(mcp: Any, httpx_mock: Any) -> None:
     """inspect_container returns container details."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1",
+        url="http://localhost:3552/api/agents/0/containers/c1",
         method="GET",
         json={"id": "c1", "name": "web", "config": {}},
     )
@@ -65,7 +65,7 @@ async def test_inspect_container(mcp: Any, httpx_mock: Any) -> None:
 async def test_start_container(mcp: Any, httpx_mock: Any) -> None:
     """start_container posts to the start endpoint."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1/start",
+        url="http://localhost:3552/api/agents/0/containers/c1?action=start",
         method="POST",
         json={"message": "started"},
     )
@@ -77,7 +77,7 @@ async def test_start_container(mcp: Any, httpx_mock: Any) -> None:
 async def test_stop_container(mcp: Any, httpx_mock: Any) -> None:
     """stop_container posts with timeout."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1/stop",
+        url="http://localhost:3552/api/agents/0/containers/c1?action=stop",
         method="POST",
         json={"message": "stopped"},
     )
@@ -89,7 +89,7 @@ async def test_stop_container(mcp: Any, httpx_mock: Any) -> None:
 async def test_restart_container(mcp: Any, httpx_mock: Any) -> None:
     """restart_container posts with timeout."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1/restart",
+        url="http://localhost:3552/api/agents/0/containers/c1?action=restart",
         method="POST",
         json={"message": "restarted"},
     )
@@ -112,7 +112,7 @@ async def test_remove_container_needs_confirm(mcp: Any, httpx_mock: Any) -> None
 async def test_remove_container_confirmed(mcp: Any, httpx_mock: Any) -> None:
     """remove_container executes when confirm=True."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1?force=false",
+        url="http://localhost:3552/api/agents/0/containers/c1?force=false",
         method="DELETE",
         json={"message": "removed"},
     )
@@ -127,7 +127,7 @@ async def test_remove_container_confirmed(mcp: Any, httpx_mock: Any) -> None:
 async def test_create_container(mcp: Any, httpx_mock: Any) -> None:
     """create_container posts with image and name."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers",
+        url="http://localhost:3552/api/agents/0/containers",
         method="POST",
         json={"id": "new-container"},
     )
@@ -140,14 +140,9 @@ async def test_create_container(mcp: Any, httpx_mock: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_exec_in_container(mcp: Any, httpx_mock: Any) -> None:
-    """exec_in_container sends command payload."""
-    httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1/exec",
-        method="POST",
-        json={"output": "hello world"},
-    )
+    """Arcane 3 has no REST exec, so the tool explains instead of calling."""
     result = await call_tool(mcp, "exec_in_container", container_id="c1", command="echo hello")
-    assert result == {"output": "hello world"}
+    assert "WebSocket" in result["error"]
 
 
 # ── get_container_logs ────────────────────────────────────────────────
@@ -155,14 +150,14 @@ async def test_exec_in_container(mcp: Any, httpx_mock: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_get_container_logs(mcp: Any, httpx_mock: Any) -> None:
-    """get_container_logs fetches logs with tail param."""
+    """get_container_logs downloads the history and keeps the last `tail` lines."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1/logs?tail=100",
+        url="http://localhost:3552/api/agents/0/containers/c1/logs/download",
         method="GET",
-        json={"logs": "line1\nline2"},
+        text="line1\nline2\nline3\n",
     )
-    result = await call_tool(mcp, "get_container_logs", container_id="c1")
-    assert result == {"logs": "line1\nline2"}
+    result = await call_tool(mcp, "get_container_logs", container_id="c1", tail=2)
+    assert result["logs"] == "line2\nline3"
 
 
 # ── get_container_stats ───────────────────────────────────────────────
@@ -170,11 +165,15 @@ async def test_get_container_logs(mcp: Any, httpx_mock: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_get_container_stats(mcp: Any, httpx_mock: Any) -> None:
-    """get_container_stats fetches resource stats."""
+    """get_container_stats returns the container's resourceSample from the list."""
     httpx_mock.add_response(
-        url="http://localhost:3552/api/environments/0/containers/c1/stats",
+        url="http://localhost:3552/api/agents/0/containers?limit=1000&includeInternal=true",
         method="GET",
-        json={"cpu": 0.5, "memory": 1048576},
+        json={"data": [
+            {"id": "c0ffee", "names": ["/other"], "state": "running", "resourceSample": {"cpuPercent": 9.0}},
+            {"id": "c1abc", "names": ["/web"], "state": "running", "resourceSample": {"cpuPercent": 0.5, "memoryUsageBytes": 1048576}},
+        ]},
     )
-    result = await call_tool(mcp, "get_container_stats", container_id="c1")
-    assert result["cpu"] == 0.5
+    result = await call_tool(mcp, "get_container_stats", container_id="web")
+    assert result["container_id"] == "c1abc"
+    assert result["stats"]["cpuPercent"] == 0.5

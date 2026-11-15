@@ -18,7 +18,7 @@ def register(mcp: FastMCP) -> None:
     async def get_docker_info(env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get Docker system information for the given environment."""
         client = require_client()
-        url = f"/api/environments/{env_id}/system/docker/info"
+        url = f"/api/agents/{env_id}/system/docker/info"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -34,7 +34,7 @@ def register(mcp: FastMCP) -> None:
     async def get_docker_version(env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get Docker version for the given environment."""
         client = require_client()
-        url = f"/api/environments/{env_id}/version"
+        url = f"/api/agents/{env_id}/version"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -68,7 +68,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="prune_system",
             target=f"system:{env_id}",
-            endpoint=f"/api/environments/{env_id}/system/prune",
+            endpoint=f"/api/agents/{env_id}/system/prune",
             method="POST",
             body={
                 "containers": containers,
@@ -122,7 +122,7 @@ def register(mcp: FastMCP) -> None:
     async def check_system_upgrade(env_id: str = "0", agent_token: str | None = None) -> Any:
         """Check if a system upgrade is available for the given environment."""
         client = require_client()
-        url = f"/api/environments/{env_id}/system/upgrade/check"
+        url = f"/api/agents/{env_id}/system/upgrade/check"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -140,7 +140,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="trigger_upgrade",
             target=f"system:{env_id}",
-            endpoint=f"/api/environments/{env_id}/system/upgrade",
+            endpoint=f"/api/agents/{env_id}/system/upgrade",
             method="POST",
             body=None,
             params=None,
@@ -166,7 +166,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="start_all_containers",
             target=f"system:{env_id}",
-            endpoint=f"/api/environments/{env_id}/system/containers/start-all",
+            endpoint=f"/api/agents/{env_id}/system/containers?action=startall",
             method="POST",
             body=None,
             params=None,
@@ -192,7 +192,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="start_stopped_containers",
             target=f"system:{env_id}",
-            endpoint=f"/api/environments/{env_id}/system/containers/start-stopped",
+            endpoint=f"/api/agents/{env_id}/system/containers?action=startstopped",
             method="POST",
             body=None,
             params=None,
@@ -218,7 +218,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="stop_all_containers",
             target=f"system:{env_id}",
-            endpoint=f"/api/environments/{env_id}/system/containers/stop-all",
+            endpoint=f"/api/agents/{env_id}/system/containers?action=stopall",
             method="POST",
             body=None,
             params=None,

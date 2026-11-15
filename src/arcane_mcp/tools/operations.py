@@ -67,7 +67,8 @@ def register(mcp: FastMCP) -> None:
         if stored_resource_hash is not None:
             try:
                 client = require_client()
-                inspect_endpoint = entry.get("inspect_endpoint", entry["endpoint"].rstrip("/"))
+                # Arcane 3 actions are ?action= on the resource itself; inspect the bare resource.
+                inspect_endpoint = entry.get("inspect_endpoint", entry["endpoint"].split("?")[0].rstrip("/"))
                 inspect_resp = await client.get(
                     inspect_endpoint,
                     headers=_build_headers(entry.get("agent_token")),
@@ -99,8 +100,13 @@ def register(mcp: FastMCP) -> None:
 
         try:
             kwargs: dict[str, Any] = {}
-            if entry.get("body") is not None:
-                kwargs["json"] = entry["body"]
+            body = entry.get("body")
+            if isinstance(body, dict) and "_multipart" in body:
+                # Arcane 3 takes project and workspace writes as multipart
+                # form fields (JSON-encoded parts), not a JSON body.
+                kwargs["files"] = {k: (None, v) for k, v in body["_multipart"].items()}
+            elif body is not None:
+                kwargs["json"] = body
             if entry.get("params") is not None:
                 kwargs["params"] = entry["params"]
 

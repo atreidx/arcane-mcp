@@ -1,6 +1,7 @@
 """Compose project management tools."""
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any
@@ -38,7 +39,7 @@ def register(mcp: FastMCP) -> None:
     async def list_projects(env_id: str = "0", agent_token: str | None = None) -> Any:
         """List all Compose projects in the given environment."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects"
+        url = f"/api/agents/{env_id}/projects"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -54,7 +55,7 @@ def register(mcp: FastMCP) -> None:
     async def get_project(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get details of a specific Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}"
+        url = f"/api/agents/{env_id}/projects/{project_id}"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -73,9 +74,13 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="deploy_project",
             target=project_name,
-            endpoint=f"/api/environments/{env_id}/projects",
+            endpoint=f"/api/agents/{env_id}/projects",
             method="POST",
-            body={"compose": compose_content, "name": project_name},
+            # Arcane 3 creates projects from a multipart upload.
+            body={"_multipart": {
+                "project": json.dumps({"name": project_name, "composeContent": compose_content}),
+                "manifest": json.dumps({"fileChanges": []}),
+            }},
             params=None,
             classification=ToolClass.DESTRUCTIVE_WRITE,
             env_id=env_id,
@@ -99,7 +104,7 @@ def register(mcp: FastMCP) -> None:
     async def redeploy_project(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Redeploy a Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/redeploy"
+        url = f"/api/agents/{env_id}/projects/{project_id}/deploy?action=redeploy"
         try:
             resp = await client.post(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -117,7 +122,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="remove_project",
             target=project_id,
-            endpoint=f"/api/environments/{env_id}/projects/{project_id}",
+            endpoint=f"/api/agents/{env_id}/projects/{project_id}",
             method="DELETE",
             body=None,
             params=None,
@@ -143,7 +148,7 @@ def register(mcp: FastMCP) -> None:
         """Update a Compose project's configuration."""
         payload: dict = {}
         if compose_content is not None:
-            payload["compose"] = compose_content
+            payload["composeContent"] = compose_content
         if project_name is not None:
             payload["name"] = project_name
         if not payload:
@@ -154,8 +159,8 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="update_project",
             target=project_id,
-            endpoint=f"/api/environments/{env_id}/projects/{project_id}",
-            method="PUT",
+            endpoint=f"/api/agents/{env_id}/projects/{project_id}",
+            method="PATCH",
             body=payload,
             params=None,
             classification=ToolClass.DESTRUCTIVE_WRITE,
@@ -180,7 +185,7 @@ def register(mcp: FastMCP) -> None:
     async def get_project_counts(env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get counts of Compose projects in the given environment."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/counts"
+        url = f"/api/agents/{env_id}/projects/counts"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -198,7 +203,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="project_down",
             target=project_id,
-            endpoint=f"/api/environments/{env_id}/projects/{project_id}/down",
+            endpoint=f"/api/agents/{env_id}/projects/{project_id}?action=down",
             method="POST",
             body=None,
             params=None,
@@ -221,7 +226,7 @@ def register(mcp: FastMCP) -> None:
         token = get_token_store().create(
             action="restart_project",
             target=project_id,
-            endpoint=f"/api/environments/{env_id}/projects/{project_id}/restart",
+            endpoint=f"/api/agents/{env_id}/projects/{project_id}?action=restart",
             method="POST",
             body=None,
             params=None,
@@ -242,7 +247,7 @@ def register(mcp: FastMCP) -> None:
     async def build_project(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Build a Compose project's images."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/build"
+        url = f"/api/agents/{env_id}/projects/{project_id}/build"
         try:
             resp = await client.post(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -258,7 +263,7 @@ def register(mcp: FastMCP) -> None:
     async def archive_project(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Archive a Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/archive"
+        url = f"/api/agents/{env_id}/projects/{project_id}?action=archive"
         try:
             resp = await client.post(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -274,7 +279,7 @@ def register(mcp: FastMCP) -> None:
     async def unarchive_project(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Unarchive a Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/unarchive"
+        url = f"/api/agents/{env_id}/projects/{project_id}?action=unarchive"
         try:
             resp = await client.post(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -290,7 +295,7 @@ def register(mcp: FastMCP) -> None:
     async def pull_project_images(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Pull images for a Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/pull"
+        url = f"/api/agents/{env_id}/projects/{project_id}/deploy?action=pull"
         try:
             resp = await client.post(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -306,7 +311,7 @@ def register(mcp: FastMCP) -> None:
     async def get_project_compose(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get the Compose file content for a project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/compose"
+        url = f"/api/agents/{env_id}/projects/{project_id}/compose"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -327,7 +332,7 @@ def register(mcp: FastMCP) -> None:
     async def get_project_file(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get the project file content for a Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/file"
+        url = f"/api/agents/{env_id}/projects/{project_id}/compose"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -348,7 +353,7 @@ def register(mcp: FastMCP) -> None:
     async def update_project_services(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Update services of a Compose project from the current compose config."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/update-services"
+        url = f"/api/agents/{env_id}/projects/{project_id}?action=updateservices"
         try:
             resp = await client.post(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
@@ -364,7 +369,7 @@ def register(mcp: FastMCP) -> None:
     async def get_project_runtime(project_id: str, env_id: str = "0", agent_token: str | None = None) -> Any:
         """Get the runtime info for a Compose project."""
         client = require_client()
-        url = f"/api/environments/{env_id}/projects/{project_id}/runtime"
+        url = f"/api/agents/{env_id}/projects/{project_id}/runtime"
         try:
             resp = await client.get(url, headers=_build_headers(agent_token))
             resp.raise_for_status()
